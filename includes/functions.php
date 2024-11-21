@@ -90,6 +90,15 @@ function bulk_redirector_validate_redirect($from_url, $to_url, $exclude_id = nul
     $table_name = $wpdb->prefix . 'bulk_redirects';
     $errors = array();
 
+    // Check for safe URLs
+    if (!bulk_redirector_is_safe_url($from_url)) {
+        $errors[] = __('The "From URL" contains potentially unsafe patterns or admin paths.', 'bulk-redirector');
+    }
+
+    if (!bulk_redirector_is_safe_url($to_url)) {
+        $errors[] = __('The "To URL" contains potentially unsafe patterns or admin paths.', 'bulk-redirector');
+    }
+
     // Check for duplicate 'from_url'
     $where = $exclude_id ? " AND id != %d" : "";
     $query = $wpdb->prepare(
@@ -121,6 +130,53 @@ function bulk_redirector_validate_redirect($from_url, $to_url, $exclude_id = nul
     }
 
     return $errors;
+}
+
+function bulk_redirector_is_safe_url($url) {
+    // Check for wp-admin paths
+    if (strpos($url, '/wp-admin') !== false || strpos($url, '/admin') !== false) {
+        return false;
+    }
+
+    // Check for WordPress login/register pages
+    $unsafe_paths = array(
+        'wp-login.php',
+        'wp-register.php',
+        'wp-admin',
+        'admin',
+        'login',
+        'xmlrpc.php',
+        'wp-cron.php'
+    );
+
+    foreach ($unsafe_paths as $path) {
+        if (strpos($url, $path) !== false) {
+            return false;
+        }
+    }
+
+    // Check for common exploit patterns
+    $unsafe_patterns = array(
+        '../',       // Directory traversal
+        'javascript:', // JavaScript protocol
+        'data:',      // Data protocol
+        '<script',    // Script tags
+        '%3C',        // URL encoded <
+        '%3E',        // URL encoded >
+        '&&',         // Command injection
+        '||',         // Command injection
+        ';',          // Command injection
+        '${',         // Template injection
+        '#{',         // Template injection
+    );
+
+    foreach ($unsafe_patterns as $pattern) {
+        if (strpos($url, $pattern) !== false) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 // Other helper functions...

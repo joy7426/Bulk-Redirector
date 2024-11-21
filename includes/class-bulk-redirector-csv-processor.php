@@ -1,4 +1,3 @@
-
 <?php
 class Bulk_Redirector_CSV_Processor {
     private $default_redirect_type;
@@ -32,6 +31,12 @@ class Bulk_Redirector_CSV_Processor {
 
             // Skip if URLs are empty
             if (empty($from_url) || empty($to_url)) {
+                $error_count++;
+                continue;
+            }
+
+            // Check URL safety first
+            if (!bulk_redirector_is_safe_url($from_url) || !bulk_redirector_is_safe_url($to_url)) {
                 $error_count++;
                 continue;
             }
