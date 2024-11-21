@@ -199,6 +199,13 @@ class Bulk_Redirector_Admin {
     }
 
     public function options_page() {
+        // Handle reset action
+        if (isset($_POST['bulk_redirector_reset']) && isset($_POST['_wpnonce'])) {
+            if (wp_verify_nonce($_POST['_wpnonce'], 'bulk_redirector_reset')) {
+                $this->reset_redirects();
+            }
+        }
+
         if (isset($_FILES['csv_file'])) {
             $this->process_csv($_FILES['csv_file']);
         }
@@ -216,8 +223,41 @@ class Bulk_Redirector_Admin {
                 submit_button();
                 ?>
             </form>
+
+            <!-- Reset Form -->
+            <div class="card" style="max-width: 520px; margin-top: 20px;">
+                <h3><?php _e('Reset Redirects', 'bulk-redirector'); ?></h3>
+                <p><?php _e('This will delete all redirects from the database. This action cannot be undone.', 'bulk-redirector'); ?></p>
+                <form method="post" onsubmit="return confirm('<?php echo esc_js(__('Are you sure you want to delete all redirects? This cannot be undone!', 'bulk-redirector')); ?>');">
+                    <?php wp_nonce_field('bulk_redirector_reset'); ?>
+                    <input type="submit" name="bulk_redirector_reset" class="button button-secondary delete" value="<?php echo esc_attr__('Delete All Redirects', 'bulk-redirector'); ?>">
+                </form>
+            </div>
         </div>
         <?php
+    }
+
+    private function reset_redirects() {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'bulk_redirects';
+        
+        $result = $wpdb->query("TRUNCATE TABLE $table_name");
+        
+        if ($result !== false) {
+            add_settings_error(
+                'bulk_redirector_messages',
+                'reset_success',
+                __('All redirects have been deleted successfully.', 'bulk-redirector'),
+                'success'
+            );
+        } else {
+            add_settings_error(
+                'bulk_redirector_messages',
+                'reset_error',
+                __('Error deleting redirects. Please try again.', 'bulk-redirector'),
+                'error'
+            );
+        }
     }
 
     public function process_csv($file) {
