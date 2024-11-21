@@ -1,5 +1,26 @@
 <?php
 class Bulk_Redirector_Admin {
+    private $list_table;
+    private $csv_processor;
+    private $page_slug = 'bulk-redirector';
+
+    public function init() {
+        // Remove old constructor hooks to prevent duplicate menu items
+        remove_action('admin_menu', array($this, 'add_admin_menu'));
+        remove_action('admin_init', array($this, 'settings_init'));
+        
+        // Add new hooks
+        add_action('admin_menu', array($this, 'add_admin_menu'));
+        add_action('admin_init', array($this, 'settings_init'));
+        add_filter('plugin_action_links_bulk-redirector/bulk-redirector.php', array($this, 'settings_link'));
+        
+        if (isset($_GET['page']) && $_GET['page'] === 'bulk-redirector-list') {
+            $this->list_table = new Bulk_Redirects_List_Table();
+        }
+        
+        $this->csv_processor = new Bulk_Redirector_CSV_Processor();
+    }
+
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'settings_init'));
@@ -10,78 +31,81 @@ class Bulk_Redirector_Admin {
 
     // Move all admin-related functions here as methods
     public function add_admin_menu() {
-        $parent_slug = 'bulk_redirector';
-        $capability = 'manage_options';
-
+        // Main menu
         add_menu_page(
-            'Bulk Redirector',
-            'Bulk Redirector',
-            $capability,
-            $parent_slug,
+            __('Bulk Redirector', 'bulk-redirector'),
+            __('Bulk Redirector', 'bulk-redirector'),
+            'manage_options',
+            $this->page_slug,
             array($this, 'options_page'),
             'dashicons-randomize'
         );
 
+        // Settings submenu
         add_submenu_page(
-            $parent_slug,
-            __('Settings', 'csv-redirector'),
-            __('Settings', 'csv-redirector'),
-            $capability,
-            $parent_slug
+            $this->page_slug,
+            __('Settings', 'bulk-redirector'),
+            __('Settings', 'bulk-redirector'),
+            'manage_options',
+            $this->page_slug
         );
 
+        // Redirects list submenu
         add_submenu_page(
-            $parent_slug,
-            __('Redirects List', 'csv-redirector'),
-            __('Redirects List', 'csv-redirector'),
-            $capability,
-            'csv-redirector-list',
+            $this->page_slug,
+            __('Redirects List', 'bulk-redirector'),
+            __('Redirects List', 'bulk-redirector'),
+            'manage_options',
+            $this->page_slug . '-list',
             array($this, 'list_page')
         );
     }
 
     public function settings_init() {
+        // Register the settings
         register_setting(
-            'csv_redirector_settings', 
-            'csv_redirector_settings',
+            'bulk_redirector_settings', 
+            'bulk_redirector_settings',
             array(
                 'sanitize_callback' => array($this, 'validate_settings')
             )
         );
 
+        // Add settings section
         add_settings_section(
-            'csv_redirector_settings_section',
-            __('Redirect Settings', 'csv-redirector'),
+            'bulk_redirector_settings_section',
+            __('Redirect Settings', 'bulk-redirector'),
             array($this, 'settings_section_callback'),
-            'csv_redirector'
+            $this->page_slug // Use the page slug property
         );
 
+        // Add settings fields
         add_settings_field(
             'redirect_type',
-            __('Redirect Type', 'csv-redirector'),
+            __('Redirect Type', 'bulk-redirector'),
             array($this, 'redirect_type_render'),
-            'csv_redirector',
-            'csv_redirector_settings_section'
+            $this->page_slug, // Use the page slug property
+            'bulk_redirector_settings_section'
         );
 
         add_settings_field(
             'csv_upload',
-            __('Upload CSV', 'csv-redirector'),
+            __('Upload CSV', 'bulk-redirector'),
             array($this, 'csv_upload_render'),
-            'csv_redirector',
-            'csv_redirector_settings_section'
+            $this->page_slug, // Use the page slug property
+            'bulk_redirector_settings_section'
         );
     }
 
     public function settings_link($links) {
-        $settings_link = '<a href="admin.php?page=csv_redirector">' . __('Settings') . '</a>';
+        $settings_link = '<a href="admin.php?page=' . $this->page_slug . '">' . __('Settings', 'bulk-redirector') . '</a>';
         array_unshift($links, $settings_link);
         return $links;
     }
 
     public function list_page() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'csv_redirects';
+        $table_name = $wpdb->prefix . 'bulk_redirects'; // Changed from csv_redirects
 
         // Handle bulk actions
         if (isset($_POST['redirects']) && isset($_POST['action']) && $_POST['action'] === 'delete') {
@@ -127,14 +151,16 @@ class Bulk_Redirector_Admin {
         } else {
             ?>
             <div class="wrap">
-                <h1 class="wp-heading-inline"><?php echo esc_html__('Redirects List', 'csv-redirector'); ?></h1>
-                <a href="?page=<?php echo $_REQUEST['page']; ?>&action=add" class="page-title-action"><?php echo esc_html__('Add New', 'csv-redirector'); ?></a>
-                <?php settings_errors('csv_redirector_messages'); ?>
+                <h1 class="wp-heading-inline"><?php echo esc_html__('Redirects List', 'bulk-redirector'); ?></h1>
+                <a href="?page=<?php echo $_REQUEST['page']; ?>&action=add" class="page-title-action"><?php echo esc_html__('Add New', 'bulk-redirector'); ?></a>
+                <?php settings_errors('bulk_redirector_messages'); ?>
                 <form method="post">
                     <?php
-                    $table = new CSV_Redirects_List_Table();
-                    $table->prepare_items();
-                    $table->display();
+                    if (!isset($this->list_table)) {
+                        $this->list_table = new Bulk_Redirects_List_Table();
+                    }
+                    $this->list_table->prepare_items();
+                    $this->list_table->display();
                     ?>
                 </form>
             </div>
@@ -199,32 +225,21 @@ class Bulk_Redirector_Admin {
     }
 
     public function options_page() {
-        // Handle reset action
-        if (isset($_POST['bulk_redirector_reset']) && isset($_POST['_wpnonce'])) {
-            if (wp_verify_nonce($_POST['_wpnonce'], 'bulk_redirector_reset')) {
-                $this->reset_redirects();
-            }
-        }
-
-        if (isset($_FILES['csv_file'])) {
-            $this->process_csv($_FILES['csv_file']);
-        }
         ?>
         <div class="wrap">
-            <h2>CSV Redirector Settings</h2>
-            <?php
-            // Show error/update messages
-            settings_errors('csv_redirector_messages');
-            ?>
-            <form action="" method="post" enctype="multipart/form-data">
+            <h2><?php echo esc_html__('Bulk Redirector Settings', 'bulk-redirector'); ?></h2>
+            <?php settings_errors('bulk_redirector_messages'); ?>
+            
+            <!-- Settings Form -->
+            <form action="options.php" method="post" enctype="multipart/form-data">
                 <?php
-                settings_fields('csv_redirector_settings');
-                do_settings_sections('csv_redirector');
+                settings_fields('bulk_redirector_settings');
+                do_settings_sections($this->page_slug);
                 submit_button();
                 ?>
             </form>
 
-            <!-- Reset Form -->
+            <!-- Reset Section -->
             <div class="card" style="max-width: 520px; margin-top: 20px;">
                 <h3><?php _e('Reset Redirects', 'bulk-redirector'); ?></h3>
                 <p><?php _e('This will delete all redirects from the database. This action cannot be undone.', 'bulk-redirector'); ?></p>
@@ -369,17 +384,17 @@ class Bulk_Redirector_Admin {
     }
 
     public function redirect_type_render() {
-        $options = get_option('csv_redirector_settings');
+        $options = get_option('bulk_redirector_settings', array('redirect_type' => ''));
         $redirect_type = isset($options['redirect_type']) ? $options['redirect_type'] : '';
         ?>
-        <select name='csv_redirector_settings[redirect_type]' required>
+        <select name='bulk_redirector_settings[redirect_type]' required>
             <option value='' <?php selected($redirect_type, ''); ?>>-- Select Redirect Type --</option>
             <option value='301' <?php selected($redirect_type, '301'); ?>>301 - Permanent</option>
             <option value='302' <?php selected($redirect_type, '302'); ?>>302 - Temporary</option>
             <option value='307' <?php selected($redirect_type, '307'); ?>>307 - Temporary (Strict)</option>
         </select>
         <p class="description">
-            <?php _e('Select the type of redirect you want to use.', 'csv-redirector'); ?>
+            <?php _e('Select the default type for new redirects', 'bulk-redirector'); ?>
         </p>
         <?php
     }
