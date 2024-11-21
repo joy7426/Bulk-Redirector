@@ -84,4 +84,43 @@ function bulk_redirector_is_circular($from_url, $to_url) {
     return false;
 }
 
+// Function for validating redirects
+function bulk_redirector_validate_redirect($from_url, $to_url, $exclude_id = null) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'bulk_redirects';
+    $errors = array();
+
+    // Check for duplicate 'from_url'
+    $where = $exclude_id ? " AND id != %d" : "";
+    $query = $wpdb->prepare(
+        "SELECT id FROM $table_name WHERE from_url = %s" . $where,
+        array_merge([$from_url], $exclude_id ? [$exclude_id] : [])
+    );
+    
+    if ($wpdb->get_var($query)) {
+        $errors[] = __('This "From URL" already exists in redirects.', 'bulk-redirector');
+    }
+
+    // Check if 'to_url' matches any existing 'from_url'
+    $query = $wpdb->prepare(
+        "SELECT from_url FROM $table_name WHERE from_url = %s",
+        $to_url
+    );
+    if ($wpdb->get_var($query)) {
+        $errors[] = __('The "To URL" matches an existing "From URL", which would create a redirect chain.', 'bulk-redirector');
+    }
+
+    // Check for self-redirect
+    if ($from_url === $to_url) {
+        $errors[] = __('Cannot redirect a URL to itself.', 'bulk-redirector');
+    }
+
+    // Check for circular redirects
+    if (bulk_redirector_is_circular($from_url, $to_url)) {
+        $errors[] = __('This would create a circular redirect.', 'bulk-redirector');
+    }
+
+    return $errors;
+}
+
 // Other helper functions...

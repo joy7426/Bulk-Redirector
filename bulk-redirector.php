@@ -246,22 +246,32 @@ function bulk_redirector_list_page() {
         $from_url = esc_url_raw(trim($_POST['from_url']));
         $to_url = esc_url_raw(trim($_POST['to_url']));
         $redirect_type = sanitize_text_field($_POST['redirect_type']);
+        $redirect_id = isset($_POST['redirect_id']) ? intval($_POST['redirect_id']) : null;
         
         if (empty($from_url) || empty($to_url)) {
             add_settings_error('bulk_redirector_messages', 'empty_fields', __('Both URLs are required.', 'bulk-redirector'), 'error');
         } else {
-            $data = [
-                'from_url' => $from_url,
-                'to_url' => $to_url,
-                'redirect_type' => $redirect_type
-            ];
+            // Validate redirect
+            $errors = bulk_redirector_validate_redirect($from_url, $to_url, $redirect_id);
             
-            if (isset($_POST['redirect_id'])) {
-                $wpdb->update($table_name, $data, ['id' => intval($_POST['redirect_id'])]);
-                add_settings_error('bulk_redirector_messages', 'updated', __('Redirect updated.', 'bulk-redirector'), 'success');
+            if (!empty($errors)) {
+                foreach ($errors as $error) {
+                    add_settings_error('bulk_redirector_messages', 'validation_error', $error, 'error');
+                }
             } else {
-                $wpdb->insert($table_name, $data);
-                add_settings_error('bulk_redirector_messages', 'added', __('Redirect added.', 'bulk-redirector'), 'success');
+                $data = [
+                    'from_url' => $from_url,
+                    'to_url' => $to_url,
+                    'redirect_type' => $redirect_type
+                ];
+                
+                if ($redirect_id) {
+                    $wpdb->update($table_name, $data, ['id' => $redirect_id]);
+                    add_settings_error('bulk_redirector_messages', 'updated', __('Redirect updated.', 'bulk-redirector'), 'success');
+                } else {
+                    $wpdb->insert($table_name, $data);
+                    add_settings_error('bulk_redirector_messages', 'added', __('Redirect added.', 'bulk-redirector'), 'success');
+                }
             }
         }
     }
@@ -493,8 +503,9 @@ function bulk_redirector_process_csv($file) {
             continue;
         }
 
-        // Check for circular redirects
-        if ($from_url === $to_url || bulk_redirector_is_circular($from_url, $to_url)) {
+        // Validate redirect
+        $errors = bulk_redirector_validate_redirect($from_url, $to_url);
+        if (!empty($errors)) {
             $error_count++;
             continue;
         }
