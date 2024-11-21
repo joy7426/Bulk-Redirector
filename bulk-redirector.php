@@ -23,6 +23,7 @@ define('BULK_REDIRECTOR_PLUGIN_URL', plugin_dir_url(__FILE__));
 // Include required files
 require_once BULK_REDIRECTOR_PLUGIN_DIR . 'includes/class-bulk-redirects-list-table.php';
 require_once BULK_REDIRECTOR_PLUGIN_DIR . 'includes/class-bulk-redirector-admin.php';
+require_once BULK_REDIRECTOR_PLUGIN_DIR . 'includes/class-bulk-redirector-csv-processor.php';
 require_once BULK_REDIRECTOR_PLUGIN_DIR . 'includes/functions.php';
 
 // Initialize plugin
@@ -461,84 +462,14 @@ function bulk_redirector_options_page() {
 }
 
 function bulk_redirector_process_csv($file) {
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        add_settings_error(
-            'bulk_redirector_messages',
-            'csv_upload_error',
-            __('Error uploading file.', 'bulk-redirector'),
-            'error'
-        );
-        return;
-    }
-
-    $handle = fopen($file['tmp_name'], 'r');
-    if ($handle === false) {
-        add_settings_error(
-            'bulk_redirector_messages',
-            'csv_read_error',
-            __('Error reading CSV file.', 'bulk-redirector'),
-            'error'
-        );
-        return;
-    }
-
-    global $wpdb;
-    $table_name = $wpdb->prefix . 'bulk_redirects';
-    $options = get_option('bulk_redirector_settings');
-    $redirect_type = $options['redirect_type'];
+    $processor = new Bulk_Redirector_CSV_Processor();
+    $result = $processor->process($file);
     
-    $success_count = 0;
-    $error_count = 0;
-    $headers = fgetcsv($handle); // Skip headers
-
-    while (($data = fgetcsv($handle)) !== false) {
-        if (count($data) < 2) continue;
-
-        $from_url = esc_url_raw(trim($data[0]));
-        $to_url = esc_url_raw(trim($data[1]));
-
-        // Skip if URLs are empty
-        if (empty($from_url) || empty($to_url)) {
-            $error_count++;
-            continue;
-        }
-
-        // Validate redirect
-        $errors = bulk_redirector_validate_redirect($from_url, $to_url);
-        if (!empty($errors)) {
-            $error_count++;
-            continue;
-        }
-
-        // Insert or update redirect
-        $result = $wpdb->replace(
-            $table_name,
-            array(
-                'from_url' => $from_url,
-                'to_url' => $to_url,
-                'redirect_type' => $redirect_type
-            ),
-            array('%s', '%s', '%s')
-        );
-
-        if ($result === false) {
-            $error_count++;
-        } else {
-            $success_count++;
-        }
-    }
-
-    fclose($handle);
-
     add_settings_error(
         'bulk_redirector_messages',
-        'csv_upload_success',
-        sprintf(
-            __('Processed CSV file. Success: %d, Errors: %d', 'bulk-redirector'),
-            $success_count,
-            $error_count
-        ),
-        'success'
+        $result['success'] ? 'csv_upload_success' : 'csv_upload_error',
+        $result['message'],
+        $result['success'] ? 'success' : 'error'
     );
 }
 

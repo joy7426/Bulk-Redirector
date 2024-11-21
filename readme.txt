@@ -1,5 +1,5 @@
 === Bulk Redirector ===
-Contributors: mohaimenul
+Contributors: Md Mohaimenul Islam Joy
 Tags: redirects, bulk redirect, url management, 301 redirect, 302 redirect, csv import
 Requires at least: 5.0
 Tested up to: 6.3
