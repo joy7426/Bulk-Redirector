@@ -68,13 +68,11 @@ class Bulk_Redirects_List_Table extends WP_List_Table {
         
         $per_page = 20;
         $current_page = $this->get_pagenum();
-        $total_items = $wpdb->get_var("SELECT COUNT(id) FROM $table_name");
-
-        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
-        $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
         
-        $search = isset($_POST['s']) ? sanitize_text_field($_POST['s']) : '';
+        // Add search functionality
+        $search = isset($_REQUEST['s']) ? sanitize_text_field($_REQUEST['s']) : '';
         $where = '';
+        
         if (!empty($search)) {
             $where = $wpdb->prepare(
                 " WHERE from_url LIKE %s OR to_url LIKE %s",
@@ -82,7 +80,12 @@ class Bulk_Redirects_List_Table extends WP_List_Table {
                 '%' . $wpdb->esc_like($search) . '%'
             );
         }
+        
+        $total_items = $wpdb->get_var("SELECT COUNT(id) FROM $table_name" . $where);
 
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
+        $order = isset($_GET['order']) ? sanitize_text_field($_GET['order']) : 'DESC';
+        
         $this->items = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT * FROM $table_name $where ORDER BY $orderby $order LIMIT %d OFFSET %d",
@@ -115,5 +118,23 @@ class Bulk_Redirects_List_Table extends WP_List_Table {
         return [
             'delete' => 'Delete'
         ];
+    }
+
+    // Add this new method
+    public function search_box($text, $input_id) {
+        if (empty($_REQUEST['s']) && !$this->has_items()) {
+            return;
+        }
+        
+        $input_id = $input_id . '-search-input';
+        
+        ?>
+        <p class="search-box">
+            <label class="screen-reader-text" for="<?php echo esc_attr($input_id); ?>"><?php echo esc_html($text); ?>:</label>
+            <input type="search" id="<?php echo esc_attr($input_id); ?>" name="s" 
+                value="<?php echo esc_attr(isset($_REQUEST['s']) ? $_REQUEST['s'] : ''); ?>" />
+            <?php submit_button($text, '', '', false, array('id' => 'search-submit')); ?>
+        </p>
+        <?php
     }
 }
