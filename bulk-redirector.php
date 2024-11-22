@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name: Bulk Redirector
-Plugin URI: 
+Plugin URI: https://github.com/joy7426/bulk-redirector
 Description: A plugin to manage redirections in bulk using CSV files
 Version: 1.0.0
 Author: Md Mohaimenul Islam Joy
@@ -10,7 +10,7 @@ License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: bulk-redirector
 Requires at least: 5.0
-Tested up to: 6.0
+Tested up to: 6.3
 Requires PHP: 7.2
 */
 
