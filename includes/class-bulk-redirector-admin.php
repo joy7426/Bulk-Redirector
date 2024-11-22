@@ -27,6 +27,7 @@ class Bulk_Redirector_Admin {
         add_filter('plugin_action_links_' . plugin_basename(BULK_REDIRECTOR_PLUGIN_DIR . 'bulk-redirector.php'), 
             array($this, 'settings_link')
         );
+        $this->csv_processor = new Bulk_Redirector_CSV_Processor();
     }
 
     // Move all admin-related functions here as methods
@@ -41,11 +42,11 @@ class Bulk_Redirector_Admin {
             'dashicons-randomize'
         );
 
-        // Settings submenu
+        // Upload CSV submenu (changed from Settings)
         add_submenu_page(
             $this->page_slug,
-            __('Settings', 'bulk-redirector'),
-            __('Settings', 'bulk-redirector'),
+            __('Upload CSV', 'bulk-redirector'),
+            __('Upload CSV', 'bulk-redirector'),
             'manage_options',
             $this->page_slug
         );
@@ -225,27 +226,94 @@ class Bulk_Redirector_Admin {
     }
 
     public function options_page() {
+        // Handle CSV upload
+        if (isset($_FILES['csv_file']) && isset($_POST['redirect_type'])) {
+            check_admin_referer('bulk_redirector_csv_upload');
+            
+            if ($_FILES['csv_file']['error'] === 0) {
+                $redirect_type = sanitize_text_field($_POST['redirect_type']);
+                $result = $this->csv_processor->process($_FILES['csv_file'], $redirect_type);
+                
+                if ($result['success']) {
+                    add_settings_error(
+                        'bulk_redirector_messages',
+                        'csv_upload_success',
+                        $result['message'],
+                        'success'
+                    );
+                } else {
+                    add_settings_error(
+                        'bulk_redirector_messages',
+                        'csv_upload_error',
+                        $result['message'],
+                        'error'
+                    );
+                }
+            } else {
+                add_settings_error(
+                    'bulk_redirector_messages',
+                    'csv_upload_error',
+                    __('Error uploading file. Please try again.', 'bulk-redirector'),
+                    'error'
+                );
+            }
+        }
+
+        // Handle reset action
+        if (isset($_POST['bulk_redirector_reset'])) {
+            check_admin_referer('bulk_redirector_reset');
+            $this->reset_redirects();
+        }
+
+        // Rest of the options_page code remains the same
         ?>
         <div class="wrap">
-            <h2><?php echo esc_html__('Bulk Redirector Settings', 'bulk-redirector'); ?></h2>
+            <h2><?php echo esc_html__('Upload CSV', 'bulk-redirector'); ?></h2>
             <?php settings_errors('bulk_redirector_messages'); ?>
             
-            <!-- Settings Form -->
-            <form action="options.php" method="post" enctype="multipart/form-data">
-                <?php
-                settings_fields('bulk_redirector_settings');
-                do_settings_sections($this->page_slug);
-                submit_button();
-                ?>
-            </form>
+            <div class="card" style="max-width: 520px;">
+                <form method="post" enctype="multipart/form-data">
+                    <?php wp_nonce_field('bulk_redirector_csv_upload'); ?>
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">
+                                <label for="redirect_type"><?php _e('Redirect Type', 'bulk-redirector'); ?></label>
+                            </th>
+                            <td>
+                                <select name="redirect_type" id="redirect_type" required>
+                                    <option value="301">301 - Permanent</option>
+                                    <option value="302">302 - Temporary</option>
+                                    <option value="307">307 - Temporary (Strict)</option>
+                                </select>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th scope="row">
+                                <label for="csv_file"><?php _e('Upload CSV', 'bulk-redirector'); ?></label>
+                            </th>
+                            <td>
+                                <input type="file" name="csv_file" id="csv_file" accept=".csv" required />
+                                <p class="description">
+                                    <?php _e('CSV file must have "from_url" and "to_url" columns', 'bulk-redirector'); ?>
+                                </p>
+                            </td>
+                        </tr>
+                    </table>
+
+                    <?php submit_button(__('Upload CSV', 'bulk-redirector')); ?>
+                </form>
+            </div>
 
             <!-- Reset Section -->
             <div class="card" style="max-width: 520px; margin-top: 20px;">
                 <h3><?php _e('Reset Redirects', 'bulk-redirector'); ?></h3>
                 <p><?php _e('This will delete all redirects from the database. This action cannot be undone.', 'bulk-redirector'); ?></p>
-                <form method="post" onsubmit="return confirm('<?php echo esc_js(__('Are you sure you want to delete all redirects? This cannot be undone!', 'bulk-redirector')); ?>');">
+                <form method="post">
                     <?php wp_nonce_field('bulk_redirector_reset'); ?>
-                    <input type="submit" name="bulk_redirector_reset" class="button button-secondary delete" value="<?php echo esc_attr__('Delete All Redirects', 'bulk-redirector'); ?>">
+                    <input type="submit" name="bulk_redirector_reset" class="button button-secondary delete" 
+                        value="<?php echo esc_attr__('Delete All Redirects', 'bulk-redirector'); ?>"
+                        onclick="return confirm('<?php echo esc_js(__('Are you sure you want to delete all redirects? This cannot be undone!', 'bulk-redirector')); ?>');">
                 </form>
             </div>
         </div>
@@ -380,7 +448,7 @@ class Bulk_Redirector_Admin {
     }
 
     public function settings_section_callback() {
-        echo __('Configure your redirection settings here.', 'csv-redirector');
+        echo __('Upload a CSV file to import redirects or configure default redirect settings below.', 'bulk-redirector');
     }
 
     public function redirect_type_render() {
@@ -403,7 +471,7 @@ class Bulk_Redirector_Admin {
         ?>
         <input type="file" name="csv_file" accept=".csv" />
         <p class="description">
-            <?php _e('Upload a CSV file with two columns: "from_url" and "to_url"', 'csv-redirector'); ?>
+            <?php _e('Upload a CSV file with two columns: "from_url" and "to_url". Use full URLs like https://old.com, https://new.com', 'bulk-redirector'); ?>
         </p>
         <?php
     }

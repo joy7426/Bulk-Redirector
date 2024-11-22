@@ -39,6 +39,9 @@ function bulk_redirector_init() {
 add_action('init', 'bulk_redirector_init');
 register_activation_hook(__FILE__, 'bulk_redirector_activate');
 register_deactivation_hook(__FILE__, 'bulk_redirector_deactivate');
-add_action('template_redirect', 'bulk_redirector_handle_redirect');
+
+// Move the redirect hook to init for earlier execution
+remove_action('template_redirect', 'bulk_redirector_handle_redirect');
+add_action('init', 'bulk_redirector_handle_redirect', 1); // Priority 1 to run early
 
 // That's all for the main file - everything else should be in includes/

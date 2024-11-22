@@ -39,23 +39,50 @@ function bulk_redirector_deactivate() {
     // Deactivation code here
 }
 
-// Redirect handling
+// Redirect handling - Modify this function
 function bulk_redirector_handle_redirect() {
-    global $wpdb;
-    $current_url = rtrim($_SERVER['REQUEST_URI'], '/');
-    $table_name = $wpdb->prefix . 'bulk_redirects';
+    // Don't redirect in admin or during AJAX
+    if (is_admin() || wp_doing_ajax()) {
+        return;
+    }
 
+    global $wpdb;
+    
+    // Get current full URL including query string
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $current_url = $protocol . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+    
+    // Try exact match first
+    $table_name = $wpdb->prefix . 'bulk_redirects';
     $redirect = $wpdb->get_row($wpdb->prepare(
-        "SELECT to_url, redirect_type FROM $table_name WHERE from_url = %s",
+        "SELECT to_url, redirect_type FROM $table_name WHERE from_url = %s LIMIT 1",
         $current_url
     ));
 
-    if ($redirect) {
-        wp_redirect($redirect->to_url, $redirect->redirect_type);
+    // If no exact match, try with/without trailing slash
+    if (!$redirect) {
+        $alt_url = rtrim($current_url, '/');
+        if ($alt_url === $current_url) {
+            $alt_url .= '/';
+        }
+        
+        $redirect = $wpdb->get_row($wpdb->prepare(
+            "SELECT to_url, redirect_type FROM $table_name WHERE from_url = %s LIMIT 1",
+            $alt_url
+        ));
+    }
+
+    if ($redirect && $redirect->to_url !== $current_url) {
+        // Ensure to_url is a valid URL
+        $to_url = filter_var($redirect->to_url, FILTER_VALIDATE_URL) ? $redirect->to_url : home_url($redirect->to_url);
+        wp_redirect($to_url, $redirect->redirect_type);
         exit;
     }
 }
-add_action('template_redirect', 'bulk_redirector_handle_redirect');
+
+// Move this earlier in the hook order and add it to both template_redirect and init
+add_action('template_redirect', 'bulk_redirector_handle_redirect', 1);
+add_action('init', 'bulk_redirector_handle_redirect', 1);
 
 // Helper function for checking circular redirects
 function bulk_redirector_is_circular($from_url, $to_url) {
@@ -84,11 +111,19 @@ function bulk_redirector_is_circular($from_url, $to_url) {
     return false;
 }
 
-// Function for validating redirects
+// Update URL validation function
 function bulk_redirector_validate_redirect($from_url, $to_url, $exclude_id = null) {
     global $wpdb;
     $table_name = $wpdb->prefix . 'bulk_redirects';
     $errors = array();
+
+    // Ensure URLs start with http:// or https://
+    if (!preg_match('~^(?:f|ht)tps?://~i', $from_url)) {
+        $from_url = 'https://' . ltrim($from_url, '/');
+    }
+    if (!preg_match('~^(?:f|ht)tps?://~i', $to_url)) {
+        $to_url = 'https://' . ltrim($to_url, '/');
+    }
 
     // Check for safe URLs
     if (!bulk_redirector_is_safe_url($from_url)) {
@@ -133,8 +168,14 @@ function bulk_redirector_validate_redirect($from_url, $to_url, $exclude_id = nul
 }
 
 function bulk_redirector_is_safe_url($url) {
+    // Parse the URL
+    $parsed = parse_url($url);
+    
+    // Only check path component for unsafe patterns
+    $path = isset($parsed['path']) ? $parsed['path'] : '';
+
     // Check for wp-admin paths
-    if (strpos($url, '/wp-admin') !== false || strpos($url, '/admin') !== false) {
+    if (strpos($path, '/wp-admin') !== false || strpos($path, '/admin') !== false) {
         return false;
     }
 
@@ -149,8 +190,8 @@ function bulk_redirector_is_safe_url($url) {
         'wp-cron.php'
     );
 
-    foreach ($unsafe_paths as $path) {
-        if (strpos($url, $path) !== false) {
+    foreach ($unsafe_paths as $unsafe_path) {
+        if (strpos($path, $unsafe_path) !== false) {
             return false;
         }
     }
@@ -171,7 +212,7 @@ function bulk_redirector_is_safe_url($url) {
     );
 
     foreach ($unsafe_patterns as $pattern) {
-        if (strpos($url, $pattern) !== false) {
+        if (strpos($path, $pattern) !== false) {
             return false;
         }
     }
