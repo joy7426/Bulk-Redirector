@@ -18,8 +18,7 @@ class Bulk_Redirects_List_Table extends WP_List_Table {
             'from_url'      => __('From URL', 'bulk-redirector'),
             'to_url'        => __('To URL', 'bulk-redirector'),
             'redirect_type' => __('Type', 'bulk-redirector'),
-            'created_at'    => __('Created', 'bulk-redirector'),
-            'actions'       => __('Actions', 'bulk-redirector')
+            'created_at'    => __('Created', 'bulk-redirector')
         ];
     }
 
@@ -30,27 +29,21 @@ class Bulk_Redirects_List_Table extends WP_List_Table {
     public function column_from_url($item) {
         $actions = [
             'edit' => sprintf(
-                '<a href="?page=%s&action=edit&redirect=%s">Edit</a>',
+                '<a href="?page=%s&action=edit&redirect=%s">%s</a>',
                 $_REQUEST['page'],
-                $item->id
+                $item->id,
+                __('Edit', 'bulk-redirector')
             ),
             'delete' => sprintf(
-                '<a href="?page=%s&action=delete&redirect=%s" onclick="return confirm(\'Are you sure?\')">Delete</a>',
+                '<a href="?page=%s&action=delete&redirect=%s" onclick="return confirm(\'%s\')">%s</a>',
                 $_REQUEST['page'],
-                $item->id
+                $item->id,
+                __('Are you sure you want to delete this redirect?', 'bulk-redirector'),
+                __('Delete', 'bulk-redirector')
             )
         ];
 
-        return sprintf('%1$s %2$s', $item->from_url, $this->row_actions($actions));
-    }
-
-    public function column_actions($item) {
-        return sprintf(
-            '<a href="?page=%s&action=edit&redirect=%s" class="button button-small">%s</a> ',
-            $_REQUEST['page'],
-            $item->id,
-            __('Edit', 'bulk-redirector')
-        );
+        return sprintf('<strong>%1$s</strong> %2$s', esc_html($item->from_url), $this->row_actions($actions));
     }
 
     public function get_sortable_columns() {

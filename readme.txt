@@ -1,4 +1,4 @@
-=== Bulk Redirector ===
+=== Bulk Redirector (Wordpress Plugin) ===
 Contributors: Md Mohaimenul Islam Joy
 Tags: redirects, bulk redirect, url management, 301 redirect, 302 redirect, csv import
 Requires at least: 5.0
