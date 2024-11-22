@@ -31,20 +31,30 @@ class Bulk_Redirector_CSV_Processor {
 
         global $wpdb;
         $table_name = $wpdb->prefix . 'bulk_redirects';
-        $success_count = 0;
-        $error_count = 0;
+        $stats = [
+            'success' => 0,
+            'empty_rows' => 0,
+            'invalid_urls' => 0,
+            'circular_redirects' => 0,
+            'duplicates' => 0,
+            'errors' => 0,
+            'total_processed' => 0
+        ];
         $line = 0;
 
         while (($data = fgetcsv($handle)) !== false) {
             $line++;
+            $stats['total_processed']++;
             
             // Skip first row regardless of content
             if ($line === 1) {
+                $stats['total_processed']--;
                 continue;
             }
 
             // Skip empty rows
             if (empty($data) || count($data) < 2) {
+                $stats['empty_rows']++;
                 continue;
             }
 
@@ -52,14 +62,31 @@ class Bulk_Redirector_CSV_Processor {
             $from_url = $this->normalize_url(trim($data[0]));
             $to_url = $this->normalize_url(trim($data[1]));
 
-            // Skip if URLs are empty
+            // Skip if URLs are empty or invalid
             if (empty($from_url) || empty($to_url)) {
-                $error_count++;
+                $stats['invalid_urls']++;
+                continue;
+            }
+
+            // Check for circular redirects
+            if ($from_url === $to_url) {
+                $stats['circular_redirects']++;
+                continue;
+            }
+
+            // Check for existing redirect
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $table_name WHERE from_url = %s",
+                $from_url
+            ));
+
+            if ($existing) {
+                $stats['duplicates']++;
                 continue;
             }
 
             // Insert redirect
-            $result = $wpdb->replace(
+            $result = $wpdb->insert(
                 $table_name,
                 array(
                     'from_url' => $from_url,
@@ -70,25 +97,40 @@ class Bulk_Redirector_CSV_Processor {
             );
 
             if ($result === false) {
-                $error_count++;
+                $stats['errors']++;
             } else {
-                $success_count++;
+                $stats['success']++;
             }
         }
 
         fclose($handle);
 
-        if ($success_count === 0) {
+        if ($stats['success'] === 0) {
             return $this->error(__('No valid redirects found in CSV file.', 'bulk-redirector'));
         }
 
+        $message = sprintf(
+            __('CSV import completed with the following results:<br>
+                • Successfully added: %d<br>
+                • Empty rows skipped: %d<br>
+                • Invalid URLs: %d<br>
+                • Circular redirects prevented: %d<br>
+                • Duplicates skipped: %d<br>
+                • Errors: %d<br>
+                • Total rows processed: %d', 'bulk-redirector'),
+            $stats['success'],
+            $stats['empty_rows'],
+            $stats['invalid_urls'],
+            $stats['circular_redirects'],
+            $stats['duplicates'],
+            $stats['errors'],
+            $stats['total_processed']
+        );
+
         return array(
             'success' => true,
-            'message' => sprintf(
-                __('CSV import completed. Added: %d, Errors: %d', 'bulk-redirector'),
-                $success_count,
-                $error_count
-            )
+            'message' => $message,
+            'stats' => $stats
         );
     }
 

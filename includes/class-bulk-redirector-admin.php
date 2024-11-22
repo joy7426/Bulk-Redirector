@@ -112,13 +112,13 @@ class Bulk_Redirector_Admin {
         if (isset($_POST['redirects']) && isset($_POST['action']) && $_POST['action'] === 'delete') {
             $ids = array_map('intval', $_POST['redirects']);
             $wpdb->query("DELETE FROM $table_name WHERE id IN (" . implode(',', $ids) . ")");
-            add_settings_error('csv_redirector_messages', 'bulk_delete', __('Selected redirects deleted.', 'csv-redirector'), 'success');
+            add_settings_error('bulk_redirector_messages', 'bulk_delete', __('Selected redirects deleted.', 'bulk-redirector'), 'success');
         }
 
         // Handle single delete
         if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['redirect'])) {
             $wpdb->delete($table_name, ['id' => intval($_GET['redirect'])], ['%d']);
-            add_settings_error('csv_redirector_messages', 'delete', __('Redirect deleted.', 'csv-redirector'), 'success');
+            add_settings_error('bulk_redirector_messages', 'delete', __('Redirect deleted.', 'bulk-redirector'), 'success');
         }
 
         // Handle add/edit form submission
@@ -128,7 +128,7 @@ class Bulk_Redirector_Admin {
             $redirect_type = sanitize_text_field($_POST['redirect_type']);
             
             if (empty($from_url) || empty($to_url)) {
-                add_settings_error('csv_redirector_messages', 'empty_fields', __('Both URLs are required.', 'csv-redirector'), 'error');
+                add_settings_error('bulk_redirector_messages', 'empty_fields', __('Both URLs are required.', 'bulk-redirector'), 'error');
             } else {
                 $data = [
                     'from_url' => $from_url,
@@ -138,10 +138,10 @@ class Bulk_Redirector_Admin {
                 
                 if (isset($_POST['redirect_id'])) {
                     $wpdb->update($table_name, $data, ['id' => intval($_POST['redirect_id'])]);
-                    add_settings_error('csv_redirector_messages', 'updated', __('Redirect updated.', 'csv-redirector'), 'success');
+                    add_settings_error('bulk_redirector_messages', 'updated', __('Redirect updated.', 'bulk-redirector'), 'success');
                 } else {
                     $wpdb->insert($table_name, $data);
-                    add_settings_error('csv_redirector_messages', 'added', __('Redirect added.', 'csv-redirector'), 'success');
+                    add_settings_error('bulk_redirector_messages', 'added', __('Redirect added.', 'bulk-redirector'), 'success');
                 }
             }
         }
@@ -161,6 +161,8 @@ class Bulk_Redirector_Admin {
                         $this->list_table = new Bulk_Redirects_List_Table();
                     }
                     $this->list_table->prepare_items();
+                    // Add search box before the table
+                    $this->list_table->search_box(__('Search Redirects', 'bulk-redirector'), 'redirect');
                     $this->list_table->display();
                     ?>
                 </form>
@@ -172,40 +174,45 @@ class Bulk_Redirector_Admin {
     public function edit_form() {
         global $wpdb;
         $redirect = null;
+        $table_name = $wpdb->prefix . 'bulk_redirects'; // Fix: Changed from csv_redirects to bulk_redirects
         
         if (isset($_GET['redirect'])) {
             $redirect = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}csv_redirects WHERE id = %d",
+                "SELECT * FROM {$table_name} WHERE id = %d",
                 intval($_GET['redirect'])
             ));
         }
         
         ?>
         <div class="wrap">
-            <h1><?php echo $redirect ? esc_html__('Edit Redirect', 'csv-redirector') : esc_html__('Add New Redirect', 'csv-redirector'); ?></h1>
-            <?php settings_errors('csv_redirector_messages'); ?>
-            <form method="post">
+            <h1><?php echo $redirect ? esc_html__('Edit Redirect', 'bulk-redirector') : esc_html__('Add New Redirect', 'bulk-redirector'); ?></h1>
+            <?php settings_errors('bulk_redirector_messages'); ?>
+            <form method="post" action="">
                 <?php if ($redirect) : ?>
                     <input type="hidden" name="redirect_id" value="<?php echo esc_attr($redirect->id); ?>">
                 <?php endif; ?>
                 
                 <table class="form-table">
                     <tr>
-                        <th scope="row"><label for="from_url"><?php esc_html_e('From URL', 'csv-redirector'); ?></label></th>
+                        <th scope="row"><label for="from_url"><?php esc_html_e('From URL', 'bulk-redirector'); ?></label></th>
                         <td>
-                            <input name="from_url" type="text" id="from_url" value="<?php echo $redirect ? esc_attr($redirect->from_url) : ''; ?>" class="regular-text" required>
-                            <p class="description"><?php esc_html_e('The URL to redirect from', 'csv-redirector'); ?></p>
+                            <input name="from_url" type="url" id="from_url" 
+                                value="<?php echo $redirect ? esc_url($redirect->from_url) : ''; ?>" 
+                                class="regular-text" required>
+                            <p class="description"><?php esc_html_e('The URL to redirect from', 'bulk-redirector'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="to_url"><?php esc_html_e('To URL', 'csv-redirector'); ?></label></th>
+                        <th scope="row"><label for="to_url"><?php esc_html_e('To URL', 'bulk-redirector'); ?></label></th>
                         <td>
-                            <input name="to_url" type="text" id="to_url" value="<?php echo $redirect ? esc_attr($redirect->to_url) : ''; ?>" class="regular-text" required>
-                            <p class="description"><?php esc_html_e('The URL to redirect to', 'csv-redirector'); ?></p>
+                            <input name="to_url" type="url" id="to_url" 
+                                value="<?php echo $redirect ? esc_url($redirect->to_url) : ''; ?>" 
+                                class="regular-text" required>
+                            <p class="description"><?php esc_html_e('The URL to redirect to', 'bulk-redirector'); ?></p>
                         </td>
                     </tr>
                     <tr>
-                        <th scope="row"><label for="redirect_type"><?php esc_html_e('Redirect Type', 'csv-redirector'); ?></label></th>
+                        <th scope="row"><label for="redirect_type"><?php esc_html_e('Redirect Type', 'bulk-redirector'); ?></label></th>
                         <td>
                             <select name="redirect_type" id="redirect_type" required>
                                 <option value="301" <?php selected($redirect ? $redirect->redirect_type : '', '301'); ?>>301 - Permanent</option>
@@ -217,8 +224,11 @@ class Bulk_Redirector_Admin {
                 </table>
                 
                 <p class="submit">
-                    <input type="submit" name="submit_redirect" class="button button-primary" value="<?php echo $redirect ? esc_attr__('Update Redirect', 'csv-redirector') : esc_attr__('Add Redirect', 'csv-redirector'); ?>">
-                    <a href="?page=csv-redirector-list" class="button"><?php esc_html_e('Cancel', 'csv-redirector'); ?></a>
+                    <input type="submit" name="submit_redirect" class="button button-primary" 
+                        value="<?php echo $redirect ? esc_attr__('Update Redirect', 'bulk-redirector') : esc_attr__('Add Redirect', 'bulk-redirector'); ?>">
+                    <a href="?page=<?php echo esc_attr($this->page_slug); ?>-list" class="button">
+                        <?php esc_html_e('Cancel', 'bulk-redirector'); ?>
+                    </a>
                 </p>
             </form>
         </div>
@@ -239,7 +249,8 @@ class Bulk_Redirector_Admin {
                         'bulk_redirector_messages',
                         'csv_upload_success',
                         $result['message'],
-                        'success'
+                        'success',
+                        true // Allow HTML in message
                     );
                 } else {
                     add_settings_error(
@@ -346,9 +357,9 @@ class Bulk_Redirector_Admin {
     public function process_csv($file) {
         if ($file['error'] !== UPLOAD_ERR_OK) {
             add_settings_error(
-                'csv_redirector_messages',
+                'bulk_redirector_messages',
                 'csv_upload_error',
-                __('Error uploading file.', 'csv-redirector'),
+                __('Error uploading file.', 'bulk-redirector'),
                 'error'
             );
             return;
@@ -357,17 +368,17 @@ class Bulk_Redirector_Admin {
         $handle = fopen($file['tmp_name'], 'r');
         if ($handle === false) {
             add_settings_error(
-                'csv_redirector_messages',
+                'bulk_redirector_messages',
                 'csv_read_error',
-                __('Error reading CSV file.', 'csv-redirector'),
+                __('Error reading CSV file.', 'bulk-redirector'),
                 'error'
             );
             return;
         }
 
         global $wpdb;
-        $table_name = $wpdb->prefix . 'csv_redirects';
-        $options = get_option('csv_redirector_settings');
+        $table_name = $wpdb->prefix . 'bulk_redirects'; // Changed from csv_redirects
+        $options = get_option('bulk_redirector_settings');
         $redirect_type = $options['redirect_type'];
         
         $success_count = 0;
@@ -413,10 +424,10 @@ class Bulk_Redirector_Admin {
         fclose($handle);
 
         add_settings_error(
-            'csv_redirector_messages',
+            'bulk_redirector_messages',
             'csv_upload_success',
             sprintf(
-                __('Processed CSV file. Success: %d, Errors: %d', 'csv-redirector'),
+                __('Processed CSV file. Success: %d, Errors: %d', 'bulk-redirector'),
                 $success_count,
                 $error_count
             ),
@@ -430,9 +441,9 @@ class Bulk_Redirector_Admin {
 
         if (empty($input['redirect_type'])) {
             add_settings_error(
-                'csv_redirector_messages',
-                'csv_redirector_error',
-                __('Please select a redirect type.', 'csv-redirector'),
+                'bulk_redirector_messages',
+                'bulk_redirector_error',
+                __('Please select a redirect type.', 'bulk-redirector'),
                 'error'
             );
             $error = true;
@@ -478,7 +489,7 @@ class Bulk_Redirector_Admin {
 
     public function is_circular($from_url, $to_url) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'csv_redirects';
+        $table_name = $wpdb->prefix . 'bulk_redirects'; // Changed from csv_redirects
         
         $checked_urls = array($from_url);
         $current_url = $to_url;
