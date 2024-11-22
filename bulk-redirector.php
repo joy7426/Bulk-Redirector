@@ -5,7 +5,7 @@ Plugin URI:
 Description: A plugin to manage redirections in bulk using CSV files
 Version: 1.0.0
 Author: Md Mohaimenul Islam Joy
-Author URI: 
+Author URI: https://github.com/joy7426/
 License: GPL v2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: bulk-redirector
